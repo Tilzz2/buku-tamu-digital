@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Janji Temu WhatsApp</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        form {
+            max-width: 500px;
+            margin: auto;
+            padding: 20px;
+            box-shadow: 0px 0px 10px #ddd;
+            border-radius: 5px;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-top: 10px;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #25d366;
+            color: white;
+            border: none;
+            width: 100%;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #1ebe5d;
+        }
+    </style>
+</head>
+<body>
+
+    <h2 style="text-align: center;">Form Janji Temu WhatsApp</h2>
+    <form id="janjiTemuForm">
+        <label>Nama Anda:</label>
+        <input type="text" id="nama" required>
+
+        <label>Pilih Orang yang Mau Ditemui:</label>
+        <select id="orang" required onchange="updateWhatsAppNumber()">
+            <option hidden>Pilih Orang</option>
+            <option value="085266023808">Yuslidar, SP. - Tim kerja 1 Perencanaan dan pemaduan kebijakan pengendalian penduduk</option>
+            <option value="6281346438841">thoni - HRD</option>
+            
+        </select>
+
+        <label>Alasan Bertemu:</label>
+        <select id="alasan">
+            <option hidden>Pilih Alasan</option>
+            <option value="Diskusi Proyek">Diskusi Proyek</option>
+            <option value="Kerjasama Bisnis">Kerjasama Bisnis</option>
+            <option value="Lainnya">Lainnya</option>
+        </select>
+
+        <label>Jam Pertemuan:</label>
+        <input type="time" id="jam" required>
+
+        <button type="button" onclick="kirimWhatsApp()">Kirim Janji Temu</button>
+    </form>
+
+    <script>
+        function updateWhatsAppNumber() {
+            let selectBox = document.getElementById("orang");
+            let selectedNumber = selectBox.value;  // Ambil nomor WA dari option yang dipilih
+            return selectedNumber;
+        }
+
+        function kirimWhatsApp() {
+            let nama = document.getElementById("nama").value;
+            let whatsapp = updateWhatsAppNumber();
+            let alasan = document.getElementById("alasan").value;
+            let jam = document.getElementById("jam").value;
+
+            if (!nama || !whatsapp || !alasan || !jam) {
+                alert("Harap isi semua kolom!");
+                return;
+            }
+
+            let pesan = `Halo, saya ${nama} ingin bertemu dengan Anda pada jam ${jam}. Alasan: ${alasan}`;
+            
+            // Cek apakah user menggunakan HP atau desktop
+            let waLink = "";
+            if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+                waLink = `whatsapp://send?phone=${whatsapp}&text=${encodeURIComponent(pesan)}`;
+            } else {
+                waLink = `https://web.whatsapp.com/send?phone=${whatsapp}&text=${encodeURIComponent(pesan)}`;
+            }
+
+            // Buka WhatsApp
+            window.open(waLink, '_blank');
+        }
+    </script>
+
+</body>
+</html>
