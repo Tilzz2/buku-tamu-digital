@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Form Janji Temu WhatsApp</title>
+</head>
+<script>
+    fetch("daftar_kontak.json")
+        .then(response => response.text())
+        .then(text => console.log("Isi file JSON:", text))
+        .catch(error => console.error("Gagal mengambil JSON:", error));
+    </script>
+    
+<body>
+
+    <h2 style="text-align: center;">Form Janji Temu WhatsApp</h2>
+    <form id="janjiTemuForm">
+        <label>Nama Anda:</label>
+        <input type="text" id="nama" required>
+
+        <label>Pilih Orang yang Mau Ditemui:</label>
+        <select id="orang" required>
+            <option hidden>Pilih Orang</option>
+        </select>
+
+        <label>Alasan Bertemu:</label>
+        <select id="alasan">
+            <option hidden>Pilih Alasan</option>
+            <option value="Diskusi Proyek">Diskusi Proyek</option>
+            <option value="Kerjasama Bisnis">Kerjasama Bisnis</option>
+            <option value="Lainnya">Lainnya</option>
+        </select>
+
+        <label>Jam Pertemuan:</label>
+        <input type="time" id="jam" required>
+
+        <button type="button" onclick="kirimWhatsApp()">Kirim Janji Temu</button>
+    </form>
+
+
+    <script src="script.js"></script>
+</body>
+</html>
