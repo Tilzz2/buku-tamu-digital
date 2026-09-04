@@ -1,0 +1,140 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getDb, queryAll } from '../../lib/db';
+
+const db = await getDb();
+const visitors = queryAll(db, 'SELECT id, name, organization FROM visitors ORDER BY name');
+---
+
+<AdminLayout title="Watchlist Pengunjung" activePage="watchlist">
+  <div class="panel">
+    <div class="panel-header" style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+      <h3>Daftar Hitam & Peringatan</h3>
+      <button class="btn btn-primary" onclick="openModal()">+ Tambah ke Watchlist</button>
+    </div>
+    
+    <div class="panel-body" style="padding: 0 20px 20px;">
+      <div style="margin-bottom:16px;font-size:0.9rem;color:#64748b;">Pengunjung di daftar ini akan ditolak (Blocked) atau ditandai (Warning) saat mencoba Check-In.</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Pengunjung</th>
+            <th>Level</th>
+            <th>Alasan</th>
+            <th>Tanggal Ditambahkan</th>
+            <th width="100">Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="watchlist-tbody">
+          <!-- Populated by JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div id="wl-modal" class="modal-overlay" style="display:none">
+    <div class="modal-content">
+      <h3 style="margin-bottom:16px">Tambah ke Watchlist</h3>
+      <form id="wl-form">
+        <div class="form-group">
+          <label>Pilih Pengunjung</label>
+          <select id="wl-visitor" class="form-input" required>
+            <option value="">-- Pilih --</option>
+            {visitors.map((v: any) => (
+              <option value={v.id}>{v.name} {v.organization ? `(${v.organization})` : ''}</option>
+            ))}
+          </select>
+        </div>
+        <div class="form-group" style="margin-top:12px">
+          <label>Level Penolakan</label>
+          <select id="wl-level" class="form-input" required>
+            <option value="warning">Warning (Boleh masuk dengan peringatan)</option>
+            <option value="blocked">Blocked (Ditolak otomatis)</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-top:12px">
+          <label>Alasan</label>
+          <textarea id="wl-reason" class="form-input" rows="3" required placeholder="Jelaskan alasan..."></textarea>
+        </div>
+        <div class="modal-actions" style="margin-top:24px;display:flex;gap:12px;justify-content:flex-end;">
+          <button type="button" class="btn btn-ghost" onclick="closeModal()">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</AdminLayout>
+
+<style>
+  .btn { padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.9rem; border: none; font-family: inherit; }
+  .btn-primary { background: linear-gradient(to right, #4a86d6, #3b76c4); color: white; }
+  .btn-ghost { background: transparent; border: 1px solid #cbd5e1; color: #334155; }
+  .btn-danger { background: #fee2e2; color: #dc2626; border: none; }
+  
+  .panel { background: #fff; border-radius: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 10px; }
+  .data-table th { text-align: left; padding: 12px 8px; color: #64748b; border-bottom: 2px solid #f1f5f9; }
+  .data-table td { padding: 12px 8px; color: #334155; border-bottom: 1px solid #f8fafc; }
+  
+  .badge { padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+  .badge-blocked { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+  .badge-warning { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal-content { background: #fff; padding: 24px; border-radius: 16px; width: 100%; max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+  .form-input { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; margin-top: 4px; }
+  .form-input:focus { border-color: #4a86d6; outline: none; box-shadow: 0 0 0 3px rgba(74,134,214,0.1); }
+</style>
+
+<script is:inline>
+  const tbody = document.getElementById('watchlist-tbody');
+
+  async function loadWatchlist() {
+    const res = await fetch('/api/admin/watchlist');
+    const data = await res.json();
+    tbody.innerHTML = data.map(w => `
+      <tr>
+        <td><strong>${w.visitor_name}</strong><br><small>${w.organization || '-'}</small></td>
+        <td><span class="badge badge-${w.level}">${w.level}</span></td>
+        <td>${w.reason || '-'}</td>
+        <td>${new Date(w.created_at).toLocaleString('id-ID')}</td>
+        <td><button class="btn btn-sm btn-danger" style="padding:4px 10px;font-size:0.8rem;" onclick="removeWl(${w.id})">Cabut</button></td>
+      </tr>
+    `).join('');
+    if(data.length === 0) tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#94a3b8">Daftar kosong</td></tr>';
+  }
+
+  function openModal() { document.getElementById('wl-modal').style.display = 'flex'; }
+  function closeModal() { document.getElementById('wl-modal').style.display = 'none'; document.getElementById('wl-form').reset(); }
+
+  window.removeWl = async (id) => {
+    if (!confirm('Cabut pengunjung ini dari watchlist?')) return;
+    const res = await fetch('/api/admin/watchlist', {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    if (res.ok) { window.showToast('Berhasil dicabut', 'success'); loadWatchlist(); }
+  };
+
+  document.getElementById('wl-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const res = await fetch('/api/admin/watchlist', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        visitor_id: document.getElementById('wl-visitor').value,
+        level: document.getElementById('wl-level').value,
+        reason: document.getElementById('wl-reason').value,
+      })
+    });
+    if (res.ok) {
+      window.showToast('Berhasil ditambahkan', 'success');
+      closeModal(); loadWatchlist();
+    } else {
+      window.showToast('Gagal menambahkan', 'error');
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', loadWatchlist);
+</script>

@@ -1,0 +1,140 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+---
+
+<AdminLayout title="Laporan & Statistik" activePage="reports">
+  <div class="reports-header">
+    <div class="filters">
+      <select id="filter-days" class="form-select">
+        <option value="7">7 Hari Terakhir</option>
+        <option value="30" selected>30 Hari Terakhir</option>
+        <option value="90">90 Hari Terakhir</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-panel">
+      <h3>Tren Kunjungan Harian</h3>
+      <div class="chart-container">
+        <canvas id="chart-trend"></canvas>
+      </div>
+    </div>
+    <div class="chart-panel">
+      <h3>Status Kunjungan</h3>
+      <div class="chart-container">
+        <canvas id="chart-status"></canvas>
+      </div>
+    </div>
+    <div class="chart-panel">
+      <h3>Kunjungan per Departemen</h3>
+      <div class="chart-container">
+        <canvas id="chart-dept"></canvas>
+      </div>
+    </div>
+    <div class="chart-panel">
+      <h3>Kunjungan per Kategori</h3>
+      <div class="chart-container">
+        <canvas id="chart-cat"></canvas>
+      </div>
+    </div>
+  </div>
+</AdminLayout>
+
+<!-- Load Chart.js via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js" is:inline></script>
+
+<style>
+  .reports-header { display: flex; justify-content: flex-end; margin-bottom: 20px; }
+  .form-select { padding: 8px 16px; border-radius: 8px; border: 1px solid #cbd5e1; font-family: inherit; font-size: 0.9rem; background: #fff; }
+
+  .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+  
+  .chart-panel { background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+  .chart-panel h3 { font-size: 1.05rem; font-weight: 700; color: #0f172a; margin-bottom: 16px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; }
+  
+  .chart-container { position: relative; height: 300px; width: 100%; }
+
+  @media (max-width: 1024px) { .charts-grid { grid-template-columns: 1fr; } }
+</style>
+
+<script is:inline>
+document.addEventListener('DOMContentLoaded', () => {
+  let charts = {};
+
+  const colors = {
+    blue: '#4a86d6', gold: '#d4a84a', green: '#10b981', red: '#ef4444', 
+    purple: '#8b5cf6', orange: '#f59e0b', slate: '#64748b'
+  };
+  const palette = [colors.blue, colors.gold, colors.green, colors.purple, colors.orange, colors.red, colors.slate];
+
+  async function loadData() {
+    const days = document.getElementById('filter-days').value;
+    const res = await fetch(`/api/admin/stats?days=${days}`);
+    const data = await res.json();
+    renderCharts(data);
+  }
+
+  function renderCharts(data) {
+    // Clear old charts
+    Object.values(charts).forEach(c => c.destroy());
+
+    // 1. Trend Line Chart
+    const ctxTrend = document.getElementById('chart-trend').getContext('2d');
+    charts.trend = new Chart(ctxTrend, {
+      type: 'line',
+      data: {
+        labels: data.visitsByDay.map(d => d.day),
+        datasets: [{
+          label: 'Jumlah Kunjungan',
+          data: data.visitsByDay.map(d => d.count),
+          borderColor: colors.blue, backgroundColor: 'rgba(74,134,214,0.1)',
+          tension: 0.3, fill: true
+        }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+
+    // 2. Status Doughnut
+    const ctxStatus = document.getElementById('chart-status').getContext('2d');
+    const statusMap = { waiting: 'Menunggu', accepted: 'Diterima', done: 'Selesai' };
+    const statusColors = { waiting: colors.gold, accepted: colors.green, done: colors.blue };
+    charts.status = new Chart(ctxStatus, {
+      type: 'doughnut',
+      data: {
+        labels: data.visitsByStatus.map(d => statusMap[d.status] || d.status),
+        datasets: [{
+          data: data.visitsByStatus.map(d => d.count),
+          backgroundColor: data.visitsByStatus.map(d => statusColors[d.status] || colors.slate)
+        }]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+
+    // 3. Dept Bar Chart
+    const ctxDept = document.getElementById('chart-dept').getContext('2d');
+    charts.dept = new Chart(ctxDept, {
+      type: 'bar',
+      data: {
+        labels: data.visitsByDept.map(d => d.department),
+        datasets: [{ label: 'Kunjungan', data: data.visitsByDept.map(d => d.count), backgroundColor: palette }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+
+    // 4. Category Pie Chart
+    const ctxCat = document.getElementById('chart-cat').getContext('2d');
+    charts.cat = new Chart(ctxCat, {
+      type: 'pie',
+      data: {
+        labels: data.visitsByCategory.map(d => d.category),
+        datasets: [{ data: data.visitsByCategory.map(d => d.count), backgroundColor: palette }]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+  }
+
+  document.getElementById('filter-days').addEventListener('change', loadData);
+  loadData();
+});
+</script>

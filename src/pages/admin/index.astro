@@ -1,0 +1,237 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getDb, queryAll, queryOne } from '../../lib/db';
+
+const db = await getDb();
+
+// Today's stats
+const today = queryOne(db, `SELECT COUNT(*) as cnt FROM visits WHERE date(check_in_time) = date('now')`) || { cnt: 0 };
+const waiting = queryOne(db, `SELECT COUNT(*) as cnt FROM visits WHERE status = 'waiting'`) || { cnt: 0 };
+const accepted = queryOne(db, `SELECT COUNT(*) as cnt FROM visits WHERE status = 'accepted'`) || { cnt: 0 };
+const escalated = queryOne(db, `SELECT COUNT(*) as cnt FROM notification_logs WHERE status = 'escalated' AND date(sent_at) = date('now')`) || { cnt: 0 };
+
+// Recent visits
+const recentVisits = queryAll(db, `
+  SELECT v.id, v.check_in_time, v.status,
+         vis.name as visitor_name, vis.organization,
+         s.name as staff_name, s.department,
+         vc.name as category_name
+  FROM visits v
+  JOIN visitors vis ON vis.id = v.visitor_id
+  LEFT JOIN staff s ON s.id = v.staff_id
+  LEFT JOIN visit_categories vc ON vc.id = v.category_id
+  ORDER BY v.check_in_time DESC
+  LIMIT 10
+`);
+
+// Staff list for notification links
+const staffList = queryAll(db, "SELECT id, name, department FROM staff WHERE status = 'active' ORDER BY name");
+---
+
+<AdminLayout title="Dashboard" activePage="dashboard">
+  <!-- Stats cards -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(74,134,214,0.1);color:#4a86d6">👥</div>
+      <div class="stat-data">
+        <div class="stat-value">{today.cnt}</div>
+        <div class="stat-label">Kunjungan Hari Ini</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(212,168,74,0.1);color:#d4a84a">⏳</div>
+      <div class="stat-data">
+        <div class="stat-value" id="stat-waiting">{waiting.cnt}</div>
+        <div class="stat-label">Menunggu</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(16,185,129,0.1);color:#10b981">✓</div>
+      <div class="stat-data">
+        <div class="stat-value">{accepted.cnt}</div>
+        <div class="stat-label">Diterima</div>
+      </div>
+    </div>
+    <div class="stat-card escalated">
+      <div class="stat-icon" style="background:rgba(239,68,68,0.1);color:#ef4444">⚠️</div>
+      <div class="stat-data">
+        <div class="stat-value" id="stat-escalated">{escalated.cnt}</div>
+        <div class="stat-label">Eskalasi</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Escalation alerts -->
+  <div id="escalation-alerts" class="escalation-alerts"></div>
+
+  <!-- Two-column layout -->
+  <div class="dashboard-grid">
+    <!-- Recent visits -->
+    <div class="panel">
+      <div class="panel-header">
+        <h3>Kunjungan Terbaru</h3>
+        <a href="/admin/visits" class="panel-link">Lihat Semua →</a>
+      </div>
+      <div class="panel-body">
+        {recentVisits.length === 0 ? (
+          <div class="empty-state">Belum ada kunjungan</div>
+        ) : (
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Pengunjung</th>
+                <th>Tujuan</th>
+                <th>Staf</th>
+                <th>Status</th>
+                <th>Waktu</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentVisits.map((v: any) => (
+                <tr>
+                  <td>
+                    <div class="visitor-cell">
+                      <span class="visitor-name">{v.visitor_name}</span>
+                      {v.organization ? <span class="visitor-org">{v.organization}</span> : null}
+                    </div>
+                  </td>
+                  <td>{v.category_name || '-'}</td>
+                  <td>{v.staff_name || '-'}</td>
+                  <td>
+                    <span class={`badge badge-${v.status}`}>
+                      {v.status === 'waiting' ? 'Menunggu' : v.status === 'accepted' ? 'Diterima' : 'Selesai'}
+                    </span>
+                  </td>
+                  <td class="time-cell">{v.check_in_time}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+
+    <!-- Staff notification links -->
+    <div class="panel">
+      <div class="panel-header">
+        <h3>Halaman Notifikasi Staf</h3>
+      </div>
+      <div class="panel-body">
+        <p class="panel-hint">Buka halaman notifikasi di browser staf yang bersangkutan agar mereka menerima alert real-time saat ada pengunjung.</p>
+        <div class="staff-links">
+          {staffList.map((s: any) => (
+            <a href={`/staff/${s.id}`} class="staff-link" target="_blank">
+              <span class="staff-link-avatar">{(s.name as string).charAt(0)}</span>
+              <div>
+                <div class="staff-link-name">{s.name}</div>
+                <div class="staff-link-dept">{s.department}</div>
+              </div>
+              <span class="staff-link-arrow">↗</span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+</AdminLayout>
+
+<style>
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .stat-card {
+    background: #fff; border-radius: 16px; padding: 20px;
+    display: flex; align-items: center; gap: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .stat-card.escalated .stat-value { color: #ef4444; }
+  .stat-icon {
+    width: 48px; height: 48px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem; flex-shrink: 0;
+  }
+  .stat-value { font-size: 1.8rem; font-weight: 800; color: #0f172a; line-height: 1; }
+  .stat-label { font-size: 0.82rem; color: #64748b; margin-top: 4px; }
+
+  .escalation-alerts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .escalation-alert {
+    padding: 12px 16px; background: #fef2f2; border: 1px solid #fecaca;
+    border-radius: 12px; color: #dc2626; font-size: 0.9rem;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .dashboard-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+
+  .panel { background: #fff; border-radius: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); overflow: hidden; }
+  .panel-header {
+    padding: 16px 20px; border-bottom: 1px solid #f1f5f9;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .panel-header h3 { font-size: 1rem; font-weight: 700; color: #0f172a; }
+  .panel-link { font-size: 0.85rem; color: #4a86d6; text-decoration: none; font-weight: 600; }
+  .panel-link:hover { text-decoration: underline; }
+  .panel-body { padding: 16px 20px; }
+  .panel-hint { font-size: 0.85rem; color: #64748b; margin-bottom: 16px; }
+
+  .empty-state { text-align: center; padding: 40px; color: #94a3b8; }
+
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  .data-table th { text-align: left; padding: 8px 0; color: #94a3b8; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid #f1f5f9; }
+  .data-table td { padding: 10px 0; color: #334155; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
+  .visitor-cell { display: flex; flex-direction: column; }
+  .visitor-name { font-weight: 600; }
+  .visitor-org { font-size: 0.8rem; color: #94a3b8; }
+  .time-cell { font-size: 0.8rem; color: #94a3b8; white-space: nowrap; }
+
+  .badge { padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+  .badge-waiting { background: rgba(212,168,74,0.1); color: #d4a84a; }
+  .badge-accepted { background: rgba(16,185,129,0.1); color: #10b981; }
+  .badge-done { background: rgba(74,134,214,0.1); color: #4a86d6; }
+
+  .staff-links { display: flex; flex-direction: column; gap: 8px; }
+  .staff-link {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; border-radius: 12px;
+    text-decoration: none; color: #334155;
+    border: 1px solid #f1f5f9; transition: all 0.15s;
+  }
+  .staff-link:hover { border-color: #4a86d6; background: rgba(74,134,214,0.03); }
+  .staff-link-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, #4a86d6, #d4a84a);
+    color: #fff; font-weight: 700; font-size: 0.9rem;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .staff-link-name { font-weight: 600; font-size: 0.9rem; }
+  .staff-link-dept { font-size: 0.8rem; color: #94a3b8; }
+  .staff-link-arrow { margin-left: auto; color: #94a3b8; }
+
+  @media (max-width: 768px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .dashboard-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<script is:inline>
+// Connect to dashboard SSE for live escalation alerts
+document.addEventListener('DOMContentLoaded', () => {
+  const es = new EventSource('/api/sse/dashboard');
+
+  es.addEventListener('escalation', (e) => {
+    const data = JSON.parse(e.data);
+    const container = document.getElementById('escalation-alerts');
+    container.innerHTML = '';
+    for (const item of data) {
+      const div = document.createElement('div');
+      div.className = 'escalation-alert';
+      div.innerHTML = `⚠️ <strong>${item.visitor_name}</strong> telah menunggu lebih dari 5 menit tanpa konfirmasi staf`;
+      container.appendChild(div);
+    }
+    document.getElementById('stat-escalated').textContent = data.length;
+  });
+
+  es.addEventListener('stats', (e) => {
+    const data = JSON.parse(e.data);
+    const w = document.getElementById('stat-waiting');
+    if (w && data.waiting !== undefined) w.textContent = data.waiting;
+  });
+});
+</script>

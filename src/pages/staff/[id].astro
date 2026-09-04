@@ -1,0 +1,299 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getDb, queryOne, queryAll } from '../../lib/db';
+
+const staffId = parseInt(Astro.params.id || '', 10);
+if (isNaN(staffId)) return Astro.redirect('/checkin');
+
+const db = await getDb();
+const staff = queryOne(db, "SELECT id, name, department FROM staff WHERE id = ? AND status = 'active'", [staffId]);
+if (!staff) return Astro.redirect('/checkin');
+
+// Get current waiting visits for this staff
+const waitingVisits = queryAll(db, `
+  SELECT v.id, v.check_in_time, v.status,
+         vis.name as visitor_name, vis.organization,
+         vc.name as category_name
+  FROM visits v
+  JOIN visitors vis ON vis.id = v.visitor_id
+  LEFT JOIN visit_categories vc ON vc.id = v.category_id
+  WHERE v.staff_id = ? AND v.status IN ('waiting', 'accepted')
+  ORDER BY v.check_in_time DESC
+`, [staffId]);
+---
+
+<Layout title={`Notifikasi — ${staff.name}`} description="Halaman notifikasi staf" bodyClass="staff-page">
+  <main class="staff-main">
+    <header class="staff-header animate-fade-in">
+      <div class="staff-identity">
+        <div class="staff-avatar">{(staff.name as string).charAt(0)}</div>
+        <div>
+          <h1 class="staff-name">{staff.name}</h1>
+          <p class="staff-dept">{staff.department}</p>
+        </div>
+      </div>
+      <div class="connection-badge" id="conn-badge">
+        <span class="conn-dot"></span> Menghubungkan...
+      </div>
+    </header>
+
+    <section class="visits-section">
+      <h2 class="section-title">Pengunjung Menunggu</h2>
+      <div id="visits-list" class="visits-list">
+        {waitingVisits.length === 0 ? (
+          <div class="empty-state">
+            <div class="empty-icon">🏢</div>
+            <p>Belum ada pengunjung yang menunggu</p>
+          </div>
+        ) : null}
+        {waitingVisits.map((v: any) => (
+          <div class="visit-card" data-visit-id={v.id} data-status={v.status}>
+            <div class="visit-info">
+              <div class="visit-name">{v.visitor_name}</div>
+              <div class="visit-meta">
+                {v.organization ? <span>{v.organization}</span> : null}
+                <span class="visit-category">{v.category_name}</span>
+              </div>
+              <div class="visit-time">{v.check_in_time}</div>
+            </div>
+            <div class="visit-actions">
+              {v.status === 'waiting' ? (
+                <button class="btn btn-accept" data-action="accept" data-visit={v.id}>✓ Terima</button>
+              ) : (
+                <button class="btn btn-done" data-action="done" data-visit={v.id}>✓ Selesai</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  </main>
+</Layout>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+  :global(.staff-page) {
+    background-color: #f4f7fb !important;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+  :global(.staff-page::before) { display: none; }
+
+  .staff-main { max-width: 700px; margin: 0 auto; padding: var(--space-xl); }
+
+  .staff-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: var(--space-lg) var(--space-xl);
+    background: #ffffff; border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(74,134,214,0.06);
+    margin-bottom: var(--space-xl);
+  }
+  .staff-identity { display: flex; align-items: center; gap: var(--space-md); }
+  .staff-avatar {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: linear-gradient(135deg, #4a86d6, #d4a84a);
+    color: #fff; font-weight: 700; font-size: 1.3rem;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .staff-name { font-size: 1.2rem; font-weight: 700; color: #0f172a; }
+  .staff-dept { font-size: 0.85rem; color: #64748b; }
+
+  .connection-badge {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 999px;
+    background: #f1f5f9; color: #64748b; font-size: 0.8rem;
+  }
+  .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; }
+  .connection-badge.connected { background: #ecfdf5; color: #059669; }
+  .connection-badge.connected .conn-dot { background: #10b981; animation: pulse 2s infinite; }
+  .connection-badge.error { background: #fef2f2; color: #dc2626; }
+  .connection-badge.error .conn-dot { background: #ef4444; }
+
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  .section-title { font-size: 1.1rem; font-weight: 700; color: #334155; margin-bottom: var(--space-md); }
+
+  .visits-list { display: flex; flex-direction: column; gap: var(--space-md); }
+
+  .empty-state {
+    text-align: center; padding: var(--space-3xl);
+    background: #ffffff; border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(74,134,214,0.06);
+    color: #64748b;
+  }
+  .empty-icon { font-size: 3rem; margin-bottom: var(--space-md); }
+
+  .visit-card {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: var(--space-lg); background: #ffffff; border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(74,134,214,0.06);
+    border-left: 4px solid #d4a84a;
+    transition: transform 0.2s;
+  }
+  .visit-card[data-status="accepted"] { border-left-color: #10b981; }
+  .visit-card.new-visit { animation: slideInCard 0.4s ease-out; }
+
+  @keyframes slideInCard {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .visit-name { font-weight: 700; color: #0f172a; font-size: 1.05rem; }
+  .visit-meta { display: flex; gap: var(--space-sm); font-size: 0.85rem; color: #64748b; margin-top: 4px; }
+  .visit-category { padding: 2px 8px; background: #eff6ff; color: #4a86d6; border-radius: 999px; font-size: 0.8rem; }
+  .visit-time { font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }
+
+  .visit-actions { display: flex; gap: var(--space-sm); }
+  .btn-accept {
+    padding: 8px 18px; border: none; border-radius: 10px; cursor: pointer;
+    background: linear-gradient(to right, #4a86d6, #3b76c4); color: #fff;
+    font-weight: 600; font-size: 0.9rem; font-family: inherit;
+  }
+  .btn-accept:hover { box-shadow: 0 2px 10px rgba(74,134,214,0.3); }
+  .btn-done {
+    padding: 8px 18px; border: none; border-radius: 10px; cursor: pointer;
+    background: linear-gradient(to right, #10b981, #059669); color: #fff;
+    font-weight: 600; font-size: 0.9rem; font-family: inherit;
+  }
+  .btn-done:hover { box-shadow: 0 2px 10px rgba(16,185,129,0.3); }
+
+  @media (max-width: 640px) {
+    .staff-header { flex-direction: column; gap: var(--space-md); text-align: center; }
+    .staff-identity { flex-direction: column; }
+    .visit-card { flex-direction: column; gap: var(--space-md); text-align: center; }
+  }
+</style>
+
+<script is:inline define:vars={{ staffId: staffId }}>
+document.addEventListener('DOMContentLoaded', () => {
+  const badge = document.getElementById('conn-badge');
+  const visitsList = document.getElementById('visits-list');
+  let eventSource;
+
+  // Request notification permission
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
+  function connect() {
+    eventSource = new EventSource(`/api/sse/staff/${staffId}`);
+
+    eventSource.onopen = () => {
+      badge.className = 'connection-badge connected';
+      badge.innerHTML = '<span class="conn-dot"></span> Terhubung';
+    };
+
+    eventSource.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === 'new_visit') {
+          addVisitCard(data);
+          showBrowserNotification(data);
+          playNotificationSound();
+        }
+      } catch {}
+    };
+
+    eventSource.onerror = () => {
+      badge.className = 'connection-badge error';
+      badge.innerHTML = '<span class="conn-dot"></span> Terputus';
+      setTimeout(connect, 5000);
+    };
+  }
+
+  function addVisitCard(data) {
+    // Remove empty state if present
+    const empty = visitsList.querySelector('.empty-state');
+    if (empty) empty.remove();
+
+    const card = document.createElement('div');
+    card.className = 'visit-card new-visit';
+    card.dataset.visitId = data.visitId;
+    card.dataset.status = 'waiting';
+    card.innerHTML = `
+      <div class="visit-info">
+        <div class="visit-name">${escapeHtml(data.visitorName)}</div>
+        <div class="visit-meta">
+          <span class="visit-category">${escapeHtml(data.category)}</span>
+        </div>
+        <div class="visit-time">${new Date(data.timestamp).toLocaleTimeString('id-ID')}</div>
+      </div>
+      <div class="visit-actions">
+        <button class="btn btn-accept" data-action="accept" data-visit="${data.visitId}">✓ Terima</button>
+      </div>
+    `;
+    visitsList.prepend(card);
+  }
+
+  function showBrowserNotification(data) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Pengunjung Baru', {
+        body: `${data.visitorName} — ${data.category}`,
+        icon: '/logo.png',
+        tag: `visit-${data.visitId}`,
+      });
+    }
+  }
+
+  function playNotificationSound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      osc.type = 'sine';
+      gain.gain.value = 0.3;
+      osc.start();
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+      osc.stop(ctx.currentTime + 0.5);
+    } catch {}
+  }
+
+  function escapeHtml(text) {
+    const d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
+  }
+
+  // Handle accept/done buttons via event delegation
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+
+    const action = btn.dataset.action;
+    const visitId = parseInt(btn.dataset.visit);
+    btn.disabled = true;
+    btn.textContent = '...';
+
+    try {
+      const res = await fetch('/api/notifications/acknowledge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visit_id: visitId, action }),
+      });
+      if (!res.ok) throw new Error('Failed');
+
+      const card = btn.closest('.visit-card');
+      if (action === 'accept') {
+        card.dataset.status = 'accepted';
+        btn.className = 'btn btn-done';
+        btn.dataset.action = 'done';
+        btn.textContent = '✓ Selesai';
+        btn.disabled = false;
+      } else if (action === 'done') {
+        card.style.opacity = '0';
+        card.style.transform = 'translateX(40px)';
+        card.style.transition = 'all 0.3s ease';
+        setTimeout(() => card.remove(), 300);
+      }
+    } catch {
+      btn.textContent = 'Gagal';
+      btn.disabled = false;
+    }
+  });
+
+  connect();
+});
+</script>

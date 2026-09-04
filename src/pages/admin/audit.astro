@@ -1,0 +1,80 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+---
+
+<AdminLayout title="Audit Log" activePage="audit">
+  <div class="panel">
+    <div class="panel-header" style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+      <h3>Riwayat Aktivitas Admin</h3>
+    </div>
+    
+    <div class="panel-body" style="padding: 0 20px 20px;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th width="180">Waktu</th>
+            <th width="150">Admin</th>
+            <th width="200">Aksi</th>
+            <th>Detail</th>
+          </tr>
+        </thead>
+        <tbody id="audit-tbody">
+          <!-- Populated by JS -->
+        </tbody>
+      </table>
+
+      <div class="pagination">
+        <button id="btn-prev" class="btn btn-sm btn-ghost" disabled>← Lebih Baru</button>
+        <span id="page-info" class="page-info">Halaman 1</span>
+        <button id="btn-next" class="btn btn-sm btn-ghost">Lebih Lama →</button>
+      </div>
+    </div>
+  </div>
+</AdminLayout>
+
+<style>
+  .btn { padding: 6px 12px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.85rem; border: none; font-family: inherit; }
+  .btn-ghost { background: transparent; border: 1px solid #cbd5e1; color: #334155; }
+  .btn-ghost:hover:not(:disabled) { background: #f1f5f9; }
+  .btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+  
+  .panel { background: #fff; border-radius: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 10px; }
+  .data-table th { text-align: left; padding: 12px 8px; color: #64748b; border-bottom: 2px solid #f1f5f9; }
+  .data-table td { padding: 12px 8px; color: #334155; border-bottom: 1px solid #f8fafc; font-family: monospace; }
+  
+  .badge { padding: 3px 8px; border-radius: 6px; font-size: 0.75rem; background: #f1f5f9; color: #475569; }
+  
+  .pagination { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 24px; }
+  .page-info { font-size: 0.9rem; color: #64748b; font-weight: 600; }
+</style>
+
+<script is:inline>
+  let currentPage = 1;
+  const tbody = document.getElementById('audit-tbody');
+
+  async function loadAudit() {
+    const res = await fetch(`/api/admin/audit?page=${currentPage}&limit=30`);
+    const data = await res.json();
+    
+    tbody.innerHTML = data.map(a => `
+      <tr>
+        <td style="color:#64748b">${new Date(a.created_at).toLocaleString('id-ID')}</td>
+        <td><strong>${a.admin_name || 'System'}</strong></td>
+        <td><span class="badge">${a.action}</span></td>
+        <td>${a.detail || '-'}</td>
+      </tr>
+    `).join('');
+    
+    if(data.length === 0) tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#94a3b8">Tidak ada data lebih lanjut</td></tr>';
+
+    document.getElementById('page-info').textContent = `Halaman ${currentPage}`;
+    document.getElementById('btn-prev').disabled = currentPage <= 1;
+    document.getElementById('btn-next').disabled = data.length < 30; // disable if end reached
+  }
+
+  document.getElementById('btn-prev').addEventListener('click', () => { currentPage--; loadAudit(); });
+  document.getElementById('btn-next').addEventListener('click', () => { currentPage++; loadAudit(); });
+
+  document.addEventListener('DOMContentLoaded', loadAudit);
+</script>

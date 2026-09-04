@@ -1,0 +1,102 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+---
+
+<AdminLayout title="Kategori Kunjungan" activePage="categories">
+  <div class="panel">
+    <div class="panel-header" style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+      <h3>Kategori Tersedia</h3>
+      <form id="cat-add-form" style="display:flex;gap:8px;">
+        <input type="text" id="new-cat-name" class="form-input" placeholder="Kategori baru..." required style="width:250px;" />
+        <button type="submit" class="btn btn-primary">+ Tambah</button>
+      </form>
+    </div>
+    <div class="panel-body" style="padding: 0 20px 20px;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nama Kategori</th>
+            <th width="150">Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="cat-tbody">
+          <!-- Populated by JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+</AdminLayout>
+
+<style>
+  .btn { padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.9rem; border: none; font-family: inherit; }
+  .btn-primary { background: linear-gradient(to right, #4a86d6, #3b76c4); color: white; }
+  .btn-ghost { background: transparent; border: 1px solid #cbd5e1; color: #334155; }
+  .btn-danger { background: #fee2e2; color: #dc2626; border: none; }
+  
+  .panel { background: #fff; border-radius: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 10px; }
+  .data-table th { text-align: left; padding: 12px 8px; color: #64748b; border-bottom: 2px solid #f1f5f9; }
+  .data-table td { padding: 12px 8px; color: #334155; border-bottom: 1px solid #f8fafc; }
+  
+  .form-input { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; }
+  .form-input:focus { border-color: #4a86d6; outline: none; box-shadow: 0 0 0 3px rgba(74,134,214,0.1); }
+</style>
+
+<script is:inline>
+  const tbody = document.getElementById('cat-tbody');
+
+  async function loadCategories() {
+    const res = await fetch('/api/admin/categories');
+    const data = await res.json();
+    tbody.innerHTML = data.map(c => `
+      <tr>
+        <td>#${c.id}</td>
+        <td>
+          <input type="text" value="${c.name}" class="form-input" style="width:300px;border-color:transparent;background:transparent;" 
+                 onchange="updateCat(${c.id}, this.value)" onfocus="this.style.background='#fff';this.style.borderColor='#cbd5e1'" 
+                 onblur="this.style.background='transparent';this.style.borderColor='transparent'" />
+        </td>
+        <td>
+          <button class="btn btn-danger" style="padding:4px 10px;font-size:0.8rem;" onclick="deleteCat(${c.id})">Hapus</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  window.updateCat = async (id, name) => {
+    if (!name) return;
+    const res = await fetch('/api/admin/categories', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, name })
+    });
+    if (res.ok) window.showToast('Kategori diubah', 'success');
+  };
+
+  window.deleteCat = async (id) => {
+    if (!confirm('Hapus kategori ini? Data kunjungan lama tetap menyimpannya.')) return;
+    const res = await fetch('/api/admin/categories', {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    if (res.ok) { window.showToast('Kategori dihapus', 'success'); loadCategories(); }
+  };
+
+  document.getElementById('cat-add-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('new-cat-name');
+    const res = await fetch('/api/admin/categories', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: input.value })
+    });
+    if (res.ok) {
+      window.showToast('Kategori ditambah', 'success');
+      input.value = '';
+      loadCategories();
+    } else {
+      window.showToast('Gagal atau sudah ada', 'error');
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', loadCategories);
+</script>

@@ -1,0 +1,341 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getDb, queryAll } from '../lib/db';
+
+const db = await getDb();
+const staff = queryAll(db, "SELECT id, name, department FROM staff WHERE status = 'active' ORDER BY name");
+const categories = queryAll(db, "SELECT id, name FROM visit_categories ORDER BY name");
+---
+
+<Layout title="Check-In Tamu" description="Formulir check-in tamu digital" bodyClass="kiosk-page">
+  <div class="kiosk-container">
+    <!-- Branding Section (Left) -->
+    <aside class="kiosk-branding animate-fade-in">
+      <img src="/logo.png" alt="Logo Institusi" class="kiosk-logo" onerror="this.src='https://placehold.co/140x140?text=Logo';" />
+      <h1 class="kiosk-title">Buku Tamu Digital</h1>
+      <p class="kiosk-subtitle">Silakan isi data kunjungan Anda</p>
+    </aside>
+
+    <!-- Form Section (Right) -->
+    <main class="kiosk-main">
+      <section id="checkin-section" class="kiosk-form-section animate-slide-in">
+        <form id="checkin-form" class="kiosk-form" autocomplete="off">
+          <div class="form-grid stagger">
+            <div class="form-group">
+              <label class="form-label" for="visitor_name">Nama Lengkap *</label>
+              <input type="text" id="visitor_name" name="visitor_name" class="form-input form-input-lg" placeholder="Masukkan nama lengkap" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="organization">Instansi / Perusahaan</label>
+              <input type="text" id="organization" name="organization" class="form-input form-input-lg" placeholder="Nama instansi atau perusahaan" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="phone">No. Telepon</label>
+              <input type="tel" id="phone" name="phone" class="form-input form-input-lg" placeholder="08xx-xxxx-xxxx" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="category_id">Tujuan Kunjungan *</label>
+              <input list="category-list" id="category_id" name="category_id" class="form-input form-input-lg" placeholder="Pilih atau ketik tujuan..." required autocomplete="off" />
+              <datalist id="category-list">
+                {categories.map((c: any) => (
+                  <option value={c.name} />
+                ))}
+              </datalist>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="staff_id">Yang Dituju *</label>
+              <select id="staff_id" name="staff_id" class="form-select form-select-lg" required>
+                <option value="">— Pilih staf —</option>
+                {staff.map((s: any) => (
+                  <option value={s.id}>{s.name} — {s.department}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <input type="hidden" id="visitor_id" name="visitor_id" value="" />
+
+          <div class="form-actions">
+            <button type="submit" id="btn-submit" class="btn btn-primary btn-lg btn-submit">
+              <span class="btn-text">✓ Check-In</span>
+              <span class="btn-loading" style="display:none">⏳ Memproses...</span>
+            </button>
+          </div>
+
+          <div class="qr-trigger">
+            <button type="button" id="btn-qr" class="btn btn-ghost">
+              📷 Scan QR Pengunjung Berulang
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Confirmation Overlay -->
+      <section id="confirm-section" class="kiosk-confirm-section" style="display:none">
+        <div class="confirm-card animate-scale-in">
+          <div class="confirm-icon">✅</div>
+          <h2 class="confirm-title">Check-In Berhasil!</h2>
+          <p class="confirm-visitor" id="confirm-name"></p>
+          <p class="confirm-detail" id="confirm-detail"></p>
+          <div class="confirm-qr" id="confirm-qr"></div>
+          <p class="confirm-note">Silakan menunggu di ruang tunggu. Staf yang dituju akan diberitahu.</p>
+          <div class="confirm-countdown">
+            Kembali ke halaman check-in dalam <span id="countdown">10</span> detik
+          </div>
+        </div>
+      </section>
+
+      <!-- QR Scanner Modal -->
+      <div id="qr-modal" class="qr-modal" style="display:none">
+        <div class="qr-modal-content">
+          <h3>Scan QR Code</h3>
+          <p class="text-dim">Masukkan kode QR pengunjung</p>
+          <input type="text" id="qr-manual" class="form-input" placeholder="Masukkan kode QR..." style="margin-top: 1rem;" />
+          <div class="qr-modal-actions">
+            <button type="button" id="btn-qr-lookup" class="btn btn-primary btn-sm">Cari</button>
+            <button type="button" id="btn-qr-close" class="btn btn-ghost btn-sm">Tutup</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</Layout>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+  :global(body.kiosk-page::before) { display: none; }
+
+  :global(.kiosk-page) { 
+    display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: var(--space-xl); 
+    background-color: #f4f7fb !important; 
+    color: #334155;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+  
+  .kiosk-container {
+    display: flex;
+    width: 100%;
+    max-width: 1040px;
+    background: #ffffff;
+    border-radius: 24px;
+    box-shadow: 0 10px 40px rgba(74, 134, 214, 0.08);
+    overflow: hidden;
+  }
+
+  .kiosk-branding {
+    flex: 1;
+    padding: var(--space-3xl) var(--space-2xl);
+    background: linear-gradient(145deg, #f8fafc, #ffffff);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    border-right: 1px solid #e2e8f0;
+  }
+  .kiosk-logo { 
+    width: 140px; 
+    height: auto; 
+    margin-bottom: var(--space-xl); 
+  }
+  .kiosk-title { 
+    font-family: 'Fraunces', serif;
+    font-size: 2.2rem; font-weight: 700; 
+    background: linear-gradient(to right, #d4a84a, #4a86d6);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; 
+    margin-bottom: var(--space-xs); 
+  }
+  .kiosk-subtitle { color: #64748b; font-size: 1.05rem; }
+
+  .kiosk-main { 
+    flex: 1.2;
+    padding: var(--space-3xl) var(--space-2xl);
+    position: relative; 
+    z-index: 1; 
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  
+  .kiosk-form { width: 100%; }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
+  .form-grid > .form-group:first-child { grid-column: 1 / -1; }
+  
+  .form-label { color: #475569; font-weight: 600; margin-bottom: 6px; display: inline-block; font-size: 0.9rem;}
+  .form-input, .form-select, .form-input-lg, .form-select-lg {
+    background-color: #f8fafc;
+    border: 1px solid #cbd5e1;
+    color: #0f172a;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    border-radius: 12px;
+  }
+  .form-input:focus, .form-select:focus {
+    border-color: #4a86d6;
+    box-shadow: 0 0 0 3px rgba(74, 134, 214, 0.15);
+    background-color: #ffffff;
+    outline: none;
+  }
+  .form-input::placeholder { color: #94a3b8; }
+  .form-select option, datalist option { background: #ffffff; color: #0f172a; }
+
+  .form-actions { margin-top: var(--space-xl); text-align: center; }
+  .btn-submit { 
+    width: 100%; padding: 1.1rem 2rem; font-size: 1.2rem; border-radius: 12px; letter-spacing: 0.03em; 
+    background: linear-gradient(to right, #4a86d6, #d4a84a);
+    color: #ffffff;
+    border: none;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+  }
+  .btn-submit:hover {
+    box-shadow: 0 4px 16px rgba(74, 134, 214, 0.3);
+    transform: translateY(-1px);
+  }
+  .qr-trigger { margin-top: var(--space-lg); text-align: center; }
+  .qr-trigger .btn-ghost {
+    background: transparent;
+    border: 1px solid #d4a84a;
+    color: #d4a84a;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    border-radius: 12px;
+  }
+  .qr-trigger .btn-ghost:hover {
+    background: rgba(212, 168, 74, 0.05);
+  }
+
+  .kiosk-confirm-section { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); z-index: 100; padding: var(--space-lg); border-radius: 0 24px 24px 0; }
+  .confirm-card { padding: var(--space-2xl); text-align: center; max-width: 520px; width: 100%; }
+  .confirm-icon { font-size: 4rem; margin-bottom: var(--space-md); }
+  .confirm-title { font-size: 1.8rem; font-weight: 700; color: #10b981; margin-bottom: var(--space-sm); }
+  .confirm-visitor { font-size: 1.3rem; font-weight: 600; color: #0f172a; margin-bottom: var(--space-xs); }
+  .confirm-detail { color: #64748b; margin-bottom: var(--space-lg); }
+  .confirm-qr { margin: var(--space-lg) auto; display: flex; flex-direction: column; align-items: center; }
+  .confirm-qr img { border-radius: var(--radius-md); background: #fff; padding: 12px; border: 1px solid #cbd5e1; }
+  .confirm-note { color: #64748b; font-size: 0.95rem; margin-bottom: var(--space-lg); }
+  .confirm-countdown { color: #64748b; font-size: 0.85rem; }
+  .confirm-countdown span { color: #4a86d6; font-weight: 700; font-size: 1.1rem; }
+
+  .qr-modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(8px); z-index: 200; padding: var(--space-lg); }
+  .qr-modal-content { padding: var(--space-2xl); max-width: 420px; width: 100%; text-align: center; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+  .qr-modal-content h3 { font-size: 1.3rem; margin-bottom: var(--space-xs); color: #0f172a; }
+  .text-dim { color: #64748b; font-size: 0.9rem; }
+  .qr-modal-actions { display: flex; gap: var(--space-sm); justify-content: center; margin-top: var(--space-md); }
+
+  @media (max-width: 768px) {
+    .kiosk-container { flex-direction: column; }
+    .kiosk-branding { border-right: none; border-bottom: 1px solid #e2e8f0; padding: var(--space-xl); }
+    .kiosk-logo { width: 100px; margin-bottom: var(--space-md); }
+    .kiosk-main { padding: var(--space-xl); }
+    .kiosk-confirm-section { border-radius: 24px; position: fixed; }
+    .form-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<script is:inline>
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('checkin-form');
+  const checkinSection = document.getElementById('checkin-section');
+  const confirmSection = document.getElementById('confirm-section');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btnText = form.querySelector('.btn-text');
+    const btnLoad = form.querySelector('.btn-loading');
+    const btnSubmit = document.getElementById('btn-submit');
+    btnText.style.display = 'none';
+    btnLoad.style.display = 'inline';
+    btnSubmit.disabled = true;
+
+    const formData = {
+      visitor_name: document.getElementById('visitor_name').value.trim(),
+      organization: document.getElementById('organization').value.trim(),
+      phone: document.getElementById('phone').value.trim(),
+      category_id: document.getElementById('category_id').value.trim(),
+      staff_id: parseInt(document.getElementById('staff_id').value),
+      visitor_id: document.getElementById('visitor_id').value || null,
+    };
+
+    try {
+      const res = await fetch('/api/checkin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Gagal melakukan check-in');
+      showConfirmation(result);
+    } catch (err) {
+      window.showToast(err.message, 'error');
+    } finally {
+      btnText.style.display = 'inline';
+      btnLoad.style.display = 'none';
+      btnSubmit.disabled = false;
+    }
+  });
+
+  function showConfirmation(data) {
+    document.getElementById('confirm-name').textContent = data.visitor_name;
+    document.getElementById('confirm-detail').textContent = 'Tujuan: ' + data.category + ' — Menemui: ' + data.staff_name;
+
+    const qrContainer = document.getElementById('confirm-qr');
+    qrContainer.innerHTML = '';
+    if (data.qr_token) {
+      const qrImg = document.createElement('img');
+      qrImg.src = '/api/qr-image?token=' + encodeURIComponent(data.qr_token);
+      qrImg.alt = 'QR Code Pengunjung';
+      qrImg.width = 180;
+      qrImg.height = 180;
+      qrContainer.appendChild(qrImg);
+      const note = document.createElement('p');
+      note.textContent = 'Simpan QR ini untuk kunjungan berikutnya';
+      note.style.cssText = 'color: var(--color-text-dim); font-size: 0.8rem; margin-top: 8px;';
+      qrContainer.appendChild(note);
+    }
+
+    checkinSection.style.display = 'none';
+    confirmSection.style.display = 'flex';
+
+    let seconds = 10;
+    const countdownEl = document.getElementById('countdown');
+    countdownEl.textContent = seconds;
+    const timer = setInterval(() => {
+      seconds--;
+      countdownEl.textContent = seconds;
+      if (seconds <= 0) { clearInterval(timer); resetForm(); }
+    }, 1000);
+  }
+
+  function resetForm() {
+    form.reset();
+    document.getElementById('visitor_id').value = '';
+    confirmSection.style.display = 'none';
+    checkinSection.style.display = 'block';
+  }
+
+  // QR Modal
+  document.getElementById('btn-qr').addEventListener('click', () => { document.getElementById('qr-modal').style.display = 'flex'; });
+  document.getElementById('btn-qr-close').addEventListener('click', () => { document.getElementById('qr-modal').style.display = 'none'; });
+  document.getElementById('qr-modal').addEventListener('click', (e) => { if (e.target.id === 'qr-modal') e.target.style.display = 'none'; });
+
+  document.getElementById('btn-qr-lookup').addEventListener('click', async () => {
+    const token = document.getElementById('qr-manual').value.trim();
+    if (!token) return;
+    try {
+      const res = await fetch('/api/qr-lookup?token=' + encodeURIComponent(token));
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'QR tidak ditemukan');
+      document.getElementById('visitor_name').value = data.name;
+      document.getElementById('organization').value = data.organization || '';
+      document.getElementById('phone').value = data.phone || '';
+      document.getElementById('visitor_id').value = data.id;
+      document.getElementById('qr-modal').style.display = 'none';
+      window.showToast('Selamat datang kembali, ' + data.name + '!', 'success');
+    } catch (err) {
+      window.showToast(err.message, 'error');
+    }
+  });
+});
+</script>

@@ -1,0 +1,192 @@
+---
+interface Props {
+  title: string;
+  activePage?: string;
+}
+
+const { title, activePage = '' } = Astro.props;
+const admin = (Astro.locals as any).admin;
+
+const navItems = [
+  { href: '/admin', label: 'Dashboard', icon: '📊', id: 'dashboard' },
+  { href: '/admin/visits', label: 'Kunjungan', icon: '👥', id: 'visits' },
+  { href: '/admin/staff', label: 'Staf', icon: '🏢', id: 'staff' },
+  { href: '/admin/categories', label: 'Kategori', icon: '📁', id: 'categories' },
+  { href: '/admin/watchlist', label: 'Watchlist', icon: '⚠️', id: 'watchlist' },
+  { href: '/admin/reports', label: 'Laporan', icon: '📈', id: 'reports' },
+  { href: '/admin/audit', label: 'Audit Log', icon: '📋', id: 'audit' },
+];
+---
+
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>{title} — Admin Buku Tamu</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body class="admin-body">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <img src="/logo.png" alt="Logo" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-title">Buku Tamu</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      {navItems.map(item => (
+        <a href={item.href} class={`nav-item ${activePage === item.id ? 'active' : ''}`}>
+          <span class="nav-icon">{item.icon}</span>
+          <span class="nav-label">{item.label}</span>
+        </a>
+      ))}
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="admin-info">
+        <div class="admin-avatar">{admin?.username?.charAt(0)?.toUpperCase() || 'A'}</div>
+        <span class="admin-name">{admin?.username || 'Admin'}</span>
+      </div>
+      <button id="btn-logout" class="btn-logout" title="Logout">↗</button>
+    </div>
+  </aside>
+
+  <div class="admin-content">
+    <header class="admin-header">
+      <button class="hamburger" id="btn-menu" aria-label="Toggle menu">☰</button>
+      <h2 class="page-title">{title}</h2>
+      <div class="header-right">
+        <a href="/checkin" class="link-kiosk" target="_blank">🖥 Kiosk</a>
+      </div>
+    </header>
+    <main class="admin-main">
+      <slot />
+    </main>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <script is:inline>
+    // Toast helper
+    window.showToast = function(message, type = 'info', duration = 4000) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      const icons = { success: '✓', error: '✕', info: 'ℹ' };
+      toast.innerHTML = `<span style="font-size:1.2rem;font-weight:700">${icons[type] || icons.info}</span><span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0'; toast.style.transform = 'translateX(30px)';
+        toast.style.transition = 'all 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }, duration);
+    };
+
+    // Logout
+    document.getElementById('btn-logout')?.addEventListener('click', async () => {
+      await fetch('/api/admin/logout', { method: 'POST' });
+      window.location.href = '/admin/login';
+    });
+
+    // Mobile sidebar toggle
+    document.getElementById('btn-menu')?.addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('open');
+    });
+  </script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body.admin-body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #f4f7fb; color: #334155;
+      display: flex; min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 240px; background: #ffffff; border-right: 1px solid #e2e8f0;
+      display: flex; flex-direction: column; position: fixed; top: 0; bottom: 0; left: 0; z-index: 50;
+    }
+    .sidebar-brand {
+      display: flex; align-items: center; gap: 10px;
+      padding: 20px 20px 16px; border-bottom: 1px solid #e2e8f0;
+    }
+    .sidebar-logo { width: 36px; height: 36px; border-radius: 8px; }
+    .sidebar-title { font-weight: 800; font-size: 1.1rem; color: #0f172a; }
+
+    .sidebar-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; border-radius: 10px;
+      color: #64748b; font-size: 0.92rem; font-weight: 500;
+      text-decoration: none; transition: all 0.15s;
+    }
+    .nav-item:hover { background: #f1f5f9; color: #0f172a; }
+    .nav-item.active { background: linear-gradient(to right, rgba(74,134,214,0.1), rgba(212,168,74,0.05)); color: #4a86d6; font-weight: 700; }
+    .nav-icon { font-size: 1.1rem; width: 24px; text-align: center; }
+
+    .sidebar-footer {
+      padding: 16px; border-top: 1px solid #e2e8f0;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .admin-info { display: flex; align-items: center; gap: 8px; }
+    .admin-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, #4a86d6, #d4a84a);
+      color: #fff; font-weight: 700; font-size: 0.85rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .admin-name { font-weight: 600; font-size: 0.85rem; color: #0f172a; }
+    .btn-logout {
+      width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e2e8f0;
+      background: transparent; cursor: pointer; font-size: 1rem; color: #64748b;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .btn-logout:hover { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+
+    /* Content area */
+    .admin-content { margin-left: 240px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+    .admin-header {
+      background: #ffffff; border-bottom: 1px solid #e2e8f0;
+      padding: 16px 28px; display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 40;
+    }
+    .hamburger { display: none; background: none; border: none; font-size: 1.4rem; cursor: pointer; color: #334155; }
+    .page-title { font-size: 1.2rem; font-weight: 700; color: #0f172a; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .link-kiosk {
+      padding: 6px 14px; border-radius: 8px; font-size: 0.85rem; font-weight: 600;
+      background: #f1f5f9; color: #64748b; text-decoration: none;
+    }
+    .link-kiosk:hover { background: #e2e8f0; color: #334155; }
+
+    .admin-main { padding: 28px; flex: 1; }
+
+    /* Toast */
+    .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+    .toast {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 20px; background: #fff; border: 1px solid #e2e8f0;
+      border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      animation: slideInRight 0.4s ease both; min-width: 280px;
+    }
+    .toast-success { border-left: 4px solid #10b981; }
+    .toast-error { border-left: 4px solid #ef4444; }
+    .toast-info { border-left: 4px solid #4a86d6; }
+    @keyframes slideInRight { from { opacity:0; transform:translateX(30px); } to { opacity:1; transform:translateX(0); } }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); transition: transform 0.3s ease; }
+      .sidebar.open { transform: translateX(0); box-shadow: 4px 0 20px rgba(0,0,0,0.1); }
+      .admin-content { margin-left: 0; }
+      .hamburger { display: block; }
+      .admin-main { padding: 16px; }
+    }
+  </style>
+</body>
+</html>

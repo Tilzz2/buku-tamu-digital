@@ -1,0 +1,165 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+---
+
+<AdminLayout title="Manajemen Staf" activePage="staff">
+  <div class="panel">
+    <div class="panel-header" style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+      <h3>Daftar Staf</h3>
+      <button class="btn btn-primary" onclick="openModal()">+ Tambah Staf</button>
+    </div>
+    <div class="panel-body" style="padding: 0 20px 20px;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nama</th>
+            <th>Departemen</th>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="staff-tbody">
+          <!-- Populated by JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div id="staff-modal" class="modal-overlay" style="display:none">
+    <div class="modal-content">
+      <h3 id="modal-title" style="margin-bottom:16px">Tambah Staf</h3>
+      <form id="staff-form">
+        <input type="hidden" id="staff-id" />
+        <div class="form-group">
+          <label>Nama Lengkap</label>
+          <input type="text" id="staff-name" class="form-input" required />
+        </div>
+        <div class="form-group" style="margin-top:12px">
+          <label>Departemen</label>
+          <input type="text" id="staff-dept" class="form-input" required />
+        </div>
+        <div class="form-group" style="margin-top:12px">
+          <label>Email (Opsional)</label>
+          <input type="email" id="staff-email" class="form-input" />
+        </div>
+        <div class="modal-actions" style="margin-top:24px;display:flex;gap:12px;justify-content:flex-end;">
+          <button type="button" class="btn btn-ghost" onclick="closeModal()">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</AdminLayout>
+
+<style>
+  .btn { padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.9rem; border: none; font-family: inherit; }
+  .btn-primary { background: linear-gradient(to right, #4a86d6, #3b76c4); color: white; }
+  .btn-ghost { background: transparent; border: 1px solid #cbd5e1; color: #334155; }
+  .btn-sm { padding: 4px 10px; font-size: 0.8rem; }
+  .btn-danger { background: #fee2e2; color: #dc2626; }
+  
+  .panel { background: #fff; border-radius: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 10px; }
+  .data-table th { text-align: left; padding: 12px 8px; color: #64748b; border-bottom: 2px solid #f1f5f9; }
+  .data-table td { padding: 12px 8px; color: #334155; border-bottom: 1px solid #f8fafc; }
+  
+  .badge { padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+  .badge-active { background: #d1fae5; color: #059669; }
+  .badge-inactive { background: #f1f5f9; color: #64748b; }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal-content { background: #fff; padding: 24px; border-radius: 16px; width: 100%; max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+  .form-input { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; margin-top: 4px; }
+  .form-input:focus { border-color: #4a86d6; outline: none; box-shadow: 0 0 0 3px rgba(74,134,214,0.1); }
+</style>
+
+<script is:inline>
+  const tbody = document.getElementById('staff-tbody');
+  let currentData = [];
+
+  async function loadStaff() {
+    const res = await fetch('/api/admin/staff');
+    currentData = await res.json();
+    tbody.innerHTML = currentData.map(s => `
+      <tr>
+        <td>#${s.id}</td>
+        <td><strong>${s.name}</strong></td>
+        <td>${s.department || '-'}</td>
+        <td>${s.email || '-'}</td>
+        <td><span class="badge badge-${s.status === 'active' ? 'active' : 'inactive'}">${s.status}</span></td>
+        <td>
+          <button class="btn btn-sm btn-ghost" onclick="editStaff(${s.id})">Edit</button>
+          ${s.status === 'active' ? `<button class="btn btn-sm btn-danger" onclick="deleteStaff(${s.id})">Nonaktif</button>` : ''}
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function openModal(id = null) {
+    const modal = document.getElementById('staff-modal');
+    const title = document.getElementById('modal-title');
+    const form = document.getElementById('staff-form');
+    
+    if (id) {
+      title.textContent = 'Edit Staf';
+      const s = currentData.find(x => x.id === id);
+      document.getElementById('staff-id').value = s.id;
+      document.getElementById('staff-name').value = s.name;
+      document.getElementById('staff-dept').value = s.department || '';
+      document.getElementById('staff-email').value = s.email || '';
+    } else {
+      title.textContent = 'Tambah Staf';
+      form.reset();
+      document.getElementById('staff-id').value = '';
+    }
+    modal.style.display = 'flex';
+  }
+
+  function closeModal() {
+    document.getElementById('staff-modal').style.display = 'none';
+  }
+
+  window.editStaff = openModal;
+
+  window.deleteStaff = async (id) => {
+    if (!confirm('Yakin ingin menonaktifkan staf ini?')) return;
+    const res = await fetch('/api/admin/staff', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    if (res.ok) { window.showToast('Staf dinonaktifkan', 'success'); loadStaff(); }
+  };
+
+  document.getElementById('staff-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('staff-id').value;
+    const payload = {
+      name: document.getElementById('staff-name').value,
+      department: document.getElementById('staff-dept').value,
+      email: document.getElementById('staff-email').value,
+    };
+    if (id) payload.id = parseInt(id);
+
+    const res = await fetch('/api/admin/staff', {
+      method: id ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      window.showToast('Data staf disimpan', 'success');
+      closeModal();
+      loadStaff();
+    } else {
+      const err = await res.json();
+      window.showToast(err.error || 'Gagal menyimpan', 'error');
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', loadStaff);
+</script>

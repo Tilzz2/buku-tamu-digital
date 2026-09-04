@@ -1,0 +1,211 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+---
+
+<AdminLayout title="Data Kunjungan" activePage="visits">
+  <div class="panel">
+    <div class="panel-header filters-header">
+      <div class="filters">
+        <input type="text" id="filter-search" class="form-input filter-input" placeholder="Cari nama/instansi..." />
+        <select id="filter-status" class="form-input filter-input">
+          <option value="">Semua Status</option>
+          <option value="waiting">Menunggu</option>
+          <option value="accepted">Diterima</option>
+          <option value="done">Selesai</option>
+        </select>
+        <input type="date" id="filter-date-from" class="form-input filter-input" />
+        <span style="color:#94a3b8">—</span>
+        <input type="date" id="filter-date-to" class="form-input filter-input" />
+      </div>
+      <div class="actions">
+        <button id="btn-export-csv" class="btn btn-ghost">⬇ Export CSV</button>
+        <button id="btn-print" class="btn btn-primary" onclick="window.print()">🖨 Cetak PDF</button>
+      </div>
+    </div>
+    
+    <div class="panel-body">
+      <table class="data-table printable-table">
+        <thead>
+          <tr>
+            <th>Pengunjung</th>
+            <th>Instansi</th>
+            <th>Staf Dituju</th>
+            <th>Tujuan</th>
+            <th>Waktu Masuk</th>
+            <th>Waktu Keluar</th>
+            <th>Status</th>
+            <th class="no-print">Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="visits-tbody">
+          <!-- Populated by JS -->
+        </tbody>
+      </table>
+
+      <div class="pagination">
+        <button id="btn-prev" class="btn btn-sm btn-ghost" disabled>← Sebelumnya</button>
+        <span id="page-info" class="page-info">Halaman 1</span>
+        <button id="btn-next" class="btn btn-sm btn-ghost" disabled>Selanjutnya →</button>
+      </div>
+    </div>
+  </div>
+</AdminLayout>
+
+<style>
+  .filters-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding: 16px 20px; }
+  .filters { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .filter-input { padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.9rem; }
+  .actions { display: flex; gap: 12px; }
+  
+  .btn { padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.9rem; border: none; font-family: inherit; }
+  .btn-primary { background: linear-gradient(to right, #4a86d6, #3b76c4); color: white; }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-ghost { background: transparent; border: 1px solid #cbd5e1; color: #334155; }
+  .btn-ghost:hover { background: #f1f5f9; }
+  .btn-sm { padding: 6px 12px; font-size: 0.85rem; }
+
+  .panel { background: #fff; border-radius: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); overflow: hidden; }
+  .panel-body { padding: 0 20px 20px; }
+  
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 10px; }
+  .data-table th { text-align: left; padding: 12px 8px; color: #64748b; border-bottom: 2px solid #f1f5f9; }
+  .data-table td { padding: 12px 8px; color: #334155; border-bottom: 1px solid #f8fafc; }
+  
+  .badge { padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+  .badge-waiting { background: #fef3c7; color: #d97706; }
+  .badge-accepted { background: #d1fae5; color: #059669; }
+  .badge-done { background: #e0e7ff; color: #4338ca; }
+
+  .pagination { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 24px; }
+  .page-info { font-size: 0.9rem; color: #64748b; font-weight: 600; }
+
+  /* Print Styles */
+  @media print {
+    body { background: white !important; }
+    #sidebar, .admin-header, .filters, .actions, .pagination, .no-print { display: none !important; }
+    .admin-content { margin-left: 0 !important; }
+    .panel { box-shadow: none !important; border: none !important; }
+    .printable-table { border: 1px solid #000; }
+    .printable-table th, .printable-table td { border: 1px solid #000; padding: 6px; font-size: 12pt; color: #000; }
+  }
+</style>
+
+<script is:inline>
+document.addEventListener('DOMContentLoaded', () => {
+  let currentPage = 1;
+  const tbody = document.getElementById('visits-tbody');
+  
+  const filters = {
+    search: document.getElementById('filter-search'),
+    status: document.getElementById('filter-status'),
+    dateFrom: document.getElementById('filter-date-from'),
+    dateTo: document.getElementById('filter-date-to')
+  };
+
+  async function loadVisits() {
+    const params = new URLSearchParams({
+      page: currentPage,
+      limit: 25,
+      search: filters.search.value,
+      status: filters.status.value,
+      date_from: filters.dateFrom.value,
+      date_to: filters.dateTo.value
+    });
+
+    try {
+      const res = await fetch('/api/admin/visits?' + params.toString());
+      const data = await res.json();
+      
+      tbody.innerHTML = '';
+      if (data.rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:30px;color:#94a3b8;">Tidak ada data ditemukan</td></tr>`;
+      } else {
+        data.rows.forEach(v => {
+          const statusMap = { waiting: 'Menunggu', accepted: 'Diterima', done: 'Selesai' };
+          const badgeClass = `badge badge-${v.status}`;
+          
+          let actionBtn = '';
+          if (v.status !== 'done') {
+             actionBtn = `<select class="action-select" data-id="${v.id}">
+               <option value="">Ubah Status</option>
+               <option value="waiting">Menunggu</option>
+               <option value="accepted">Diterima</option>
+               <option value="done">Selesai</option>
+             </select>`;
+          }
+
+          tbody.innerHTML += `
+            <tr>
+              <td><strong>${v.visitor_name}</strong><br><small>${v.phone || '-'}</small></td>
+              <td>${v.organization || '-'}</td>
+              <td>${v.staff_name || '-'}</td>
+              <td>${v.category_name || '-'}</td>
+              <td>${v.check_in_time}</td>
+              <td>${v.check_out_time || '-'}</td>
+              <td><span class="${badgeClass}">${statusMap[v.status] || v.status}</span></td>
+              <td class="no-print">${actionBtn}</td>
+            </tr>
+          `;
+        });
+      }
+
+      document.getElementById('page-info').textContent = `Halaman ${data.page} dari ${data.pages || 1}`;
+      document.getElementById('btn-prev').disabled = data.page <= 1;
+      document.getElementById('btn-next').disabled = data.page >= data.pages;
+
+    } catch (err) {
+      console.error(err);
+      window.showToast('Gagal memuat data kunjungan', 'error');
+    }
+  }
+
+  // Event Listeners
+  Object.values(filters).forEach(el => {
+    el.addEventListener('change', () => { currentPage = 1; loadVisits(); });
+  });
+  filters.search.addEventListener('keyup', (e) => {
+    if (e.key === 'Enter') { currentPage = 1; loadVisits(); }
+  });
+
+  document.getElementById('btn-prev').addEventListener('click', () => { currentPage--; loadVisits(); });
+  document.getElementById('btn-next').addEventListener('click', () => { currentPage++; loadVisits(); });
+
+  tbody.addEventListener('change', async (e) => {
+    if (e.target.classList.contains('action-select')) {
+      const id = e.target.dataset.id;
+      const status = e.target.value;
+      if (!status) return;
+
+      try {
+        const res = await fetch('/api/admin/visits', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ visit_id: parseInt(id), status })
+        });
+        if (res.ok) {
+          window.showToast('Status berhasil diubah', 'success');
+          loadVisits();
+        } else throw new Error();
+      } catch {
+        window.showToast('Gagal mengubah status', 'error');
+      }
+    }
+  });
+
+  // Export CSV
+  document.getElementById('btn-export-csv').addEventListener('click', () => {
+    const params = new URLSearchParams({
+      search: filters.search.value,
+      status: filters.status.value,
+      date_from: filters.dateFrom.value,
+      date_to: filters.dateTo.value
+    });
+    window.location.href = '/api/admin/export?' + params.toString();
+  });
+
+  // Init
+  const today = new Date().toISOString().split('T')[0];
+  filters.dateFrom.value = today;
+  loadVisits();
+});
+</script>
